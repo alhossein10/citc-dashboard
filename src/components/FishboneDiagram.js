@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./FishboneDiagram.css";
 
 export function FishboneDiagram({ onBack }) {
@@ -20,6 +20,58 @@ export function FishboneDiagram({ onBack }) {
     "إجراء اختبارات ومحاكات تشويش بالتعاون مع الأفرع",
     "وضع خطة للمسح الدوري ومتابعة الالتزام في الطيف وكشف الترددات غير المصرح بها",
   ];
+
+  // Refs and state to compute a line from each topic to the center box
+  const svgRef = useRef(null);
+  const centerRef = useRef(null);
+  const topicRefs = useRef([]);
+  const [paths, setPaths] = useState([]);
+
+  useEffect(() => {
+    const svgEl = svgRef.current;
+    const centerEl = centerRef.current;
+
+    if (!svgEl || !centerEl) return;
+
+    const svgRect = svgEl.getBoundingClientRect();
+    const centerRect = centerEl.getBoundingClientRect();
+
+    // End point: middle-left of the center prevention box
+    const endX = centerRect.left - svgRect.left;
+    const endY = centerRect.top + centerRect.height / 2 - svgRect.top;
+
+    const newPaths = allTopics
+      .map((_, index) => {
+        const topicEl = topicRefs.current[index];
+        if (!topicEl) return null;
+
+        const topicRect = topicEl.getBoundingClientRect();
+
+        // Start point: middle-right of each topic box
+        const startX = topicRect.right - svgRect.left;
+        const startY = topicRect.top + topicRect.height / 2 - svgRect.top;
+
+        // Smooth bezier curve control points
+        const controlX1 = startX + (endX - startX) * 0.35;
+        const controlY1 = startY;
+        const controlX2 = startX + (endX - startX) * 0.75;
+        const controlY2 = endY;
+
+        return {
+          startX,
+          startY,
+          controlX1,
+          controlY1,
+          controlX2,
+          controlY2,
+          endX,
+          endY,
+        };
+      })
+      .filter(Boolean);
+
+    setPaths(newPaths);
+  }, [allTopics.length]);
 
   return (
     <motion.div
@@ -47,7 +99,7 @@ export function FishboneDiagram({ onBack }) {
       <div className="fishbone-wrapper">
         <div className="fishbone-layout">
           {/* SVG for all curved lines */}
-          <svg className="fishbone-connection-svg" dir="ltr">
+          <svg ref={svgRef} className="fishbone-connection-svg" dir="ltr">
             <defs>
               <filter id="glow">
                 <feGaussianBlur stdDeviation="4" result="coloredBlur" />
@@ -64,47 +116,26 @@ export function FishboneDiagram({ onBack }) {
                 </feMerge>
               </filter>
             </defs>
-            {allTopics.map((_, index) => {
-              // Calculate positions for each topic box
-              const cardHeight = 60; // approximate height of topic box
-              const gapSize = 16; // 1rem gap
-              const topicsStartY = 60; // starting Y position for first topic
-              
-              // Start from the right edge of each topic card
-              const startX = 50; // left edge of topic boxes
-              const startY = topicsStartY + index * (cardHeight + gapSize) + cardHeight / 2;
-              
-              // End at the left edge of الوقاية card (center vertically)
-              const endX = 850; // left edge of center box
-              const endY = 240; // center of الوقاية box
-              
-              // Control points for smooth curve
-              const controlX1 = startX + 150;
-              const controlY1 = startY;
-              const controlX2 = endX - 150;
-              const controlY2 = endY;
-
-              return (
-                <motion.path
-                  key={index}
-                  d={`M ${startX} ${startY} C ${controlX1} ${controlY1}, ${controlX2} ${controlY2}, ${endX} ${endY}`}
-                  stroke={
-                    hoveredIndex === index
-                      ? "rgba(249, 200, 100, 1)"
-                      : "rgba(249, 115, 22, 0.9)"
-                  }
-                  strokeWidth={hoveredIndex === index ? 6 : 4}
-                  fill="none"
-                  filter={hoveredIndex === index ? "url(#glow-strong)" : "url(#glow)"}
-                  initial={{ pathLength: 0, opacity: 0 }}
-                  animate={{ pathLength: 1, opacity: 1 }}
-                  transition={{ duration: 0.8, delay: 0.3 + index * 0.08 }}
-                  style={{
-                    transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
-                  }}
-                />
-              );
-            })}
+            {paths.map((p, index) => (
+              <motion.path
+                key={index}
+                d={`M ${p.startX} ${p.startY} C ${p.controlX1} ${p.controlY1}, ${p.controlX2} ${p.controlY2}, ${p.endX} ${p.endY}`}
+                stroke={
+                  hoveredIndex === index
+                    ? "rgba(249, 200, 100, 1)"
+                    : "rgba(249, 115, 22, 0.9)"
+                }
+                strokeWidth={hoveredIndex === index ? 6 : 4}
+                fill="none"
+                filter={hoveredIndex === index ? "url(#glow-strong)" : "url(#glow)"}
+                initial={{ pathLength: 0, opacity: 0 }}
+                animate={{ pathLength: 1, opacity: 1 }}
+                transition={{ duration: 0.8, delay: 0.3 + index * 0.08 }}
+                style={{
+                  transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+                }}
+              />
+            ))}
           </svg>
 
           {/* Topics Column - Left Side */}
@@ -123,6 +154,9 @@ export function FishboneDiagram({ onBack }) {
                 }}
                 onMouseEnter={() => setHoveredIndex(index)}
                 onMouseLeave={() => setHoveredIndex(null)}
+                ref={(el) => {
+                  topicRefs.current[index] = el;
+                }}
               >
                 <motion.div
                   className="topic-box"
@@ -154,6 +188,7 @@ export function FishboneDiagram({ onBack }) {
                 scale: 1.08,
               }}
               whileTap={{ scale: 0.98 }}
+              ref={centerRef}
             >
               <h2>الوقاية</h2>
             </motion.div>
