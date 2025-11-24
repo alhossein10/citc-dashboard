@@ -26,6 +26,7 @@ export function FishboneDiagram({ onBack }) {
   const centerRef = useRef(null);
   const topicRefs = useRef([]);
   const [paths, setPaths] = useState([]);
+  const [measureTick, setMeasureTick] = useState(0);
 
   useEffect(() => {
     const svgEl = svgRef.current;
@@ -71,7 +72,7 @@ export function FishboneDiagram({ onBack }) {
       .filter(Boolean);
 
     setPaths(newPaths);
-  }, [allTopics.length]);
+  }, [measureTick]);
 
   return (
     <motion.div
@@ -156,6 +157,10 @@ export function FishboneDiagram({ onBack }) {
                 onMouseLeave={() => setHoveredIndex(null)}
                 ref={(el) => {
                   topicRefs.current[index] = el;
+                  if (el) {
+                    // trigger re-measure when ref is attached
+                    setMeasureTick((tick) => tick + 1);
+                  }
                 }}
               >
                 <motion.div
